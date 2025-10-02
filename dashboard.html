@@ -293,6 +293,53 @@
             }
         }
 
+        // ユーザーインタラクション後にConditional Mediationを実行
+        async function setupConditionalPasskey(userInfo) {
+            // ページがフォーカスされるまで待機
+            if (!document.hasFocus()) {
+                log('⏳ ページのフォーカスを待機中...');
+                await new Promise(resolve => {
+                    const checkFocus = () => {
+                        if (document.hasFocus()) {
+                            resolve();
+                        } else {
+                            setTimeout(checkFocus, 100);
+                        }
+                    };
+                    checkFocus();
+                });
+            }
+
+            log('✅ ページがフォーカスされました');
+            
+            // さらに少し待ってからConditional Mediationを試行
+            setTimeout(async () => {
+                const credential = await createPasskeyConditional(userInfo);
+                
+                if (!credential) {
+                    log('ℹ️ 手動でパスキーを作成してください');
+                }
+            }, 500);
+        }
+
+        // ページクリック時にConditional Mediationを開始
+        function initConditionalOnInteraction(userInfo) {
+            const startConditional = async () => {
+                log('👆 ユーザーインタラクションを検出しました');
+                document.removeEventListener('click', startConditional);
+                document.removeEventListener('focus', startConditional);
+                document.removeEventListener('keydown', startConditional);
+                
+                await setupConditionalPasskey(userInfo);
+            };
+
+            document.addEventListener('click', startConditional, { once: true });
+            document.addEventListener('focus', startConditional, { once: true });
+            document.addEventListener('keydown', startConditional, { once: true });
+            
+            updateStatus('pending', 'ページをクリックするとパスキー作成を開始します', 'status-pending');
+        }
+
         // ページ読み込み時の処理
         window.addEventListener('load', async () => {
             log('📱 ページが読み込まれました');
@@ -306,19 +353,13 @@
                 return;
             }
 
-            // 少し待ってからConditional Mediationを試行
-            setTimeout(async () => {
-                const credential = await createPasskeyConditional(userInfo);
-                
-                // 手動作成ボタンを有効化
-                const manualBtn = document.getElementById('manualCreateBtn');
-                manualBtn.disabled = false;
-                manualBtn.addEventListener('click', () => createPasskeyManual(userInfo));
-                
-                if (!credential) {
-                    log('ℹ️ 手動でパスキーを作成してください');
-                }
-            }, 1000); // 1秒待機
+            // 手動作成ボタンを有効化
+            const manualBtn = document.getElementById('manualCreateBtn');
+            manualBtn.disabled = false;
+            manualBtn.addEventListener('click', () => createPasskeyManual(userInfo));
+
+            // ユーザーインタラクション後にConditional Mediationを開始
+            initConditionalOnInteraction(userInfo);
         });
     </script>
 </body>
